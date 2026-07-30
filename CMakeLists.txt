@@ -67,6 +67,17 @@ file(GLOB srcs
 # Compile AstraSim Library
 add_library(AstraSim STATIC ${srcs})
 
+option(
+    ASTRA_ENABLE_TCX_COMPUTE_BACKEND
+    "Link an external TCX compute backend package"
+    OFF
+)
+
+if(ASTRA_ENABLE_TCX_COMPUTE_BACKEND)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/TcxComputeBackend.cmake")
+    astra_enable_tcx_compute_backend(AstraSim)
+endif()
+
 # Link libraries
 target_link_libraries(AstraSim PUBLIC fmt::fmt)
 target_link_libraries(AstraSim PUBLIC spdlog::spdlog)
