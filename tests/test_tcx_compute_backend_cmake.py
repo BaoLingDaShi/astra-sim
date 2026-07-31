@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess
@@ -19,14 +21,28 @@ GENERATED_PROTO = (
 )
 
 
-def run(*args: str, check: bool = False) -> subprocess.CompletedProcess[str]:
+def run(
+    *args: str,
+    check: bool = False,
+    env=None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         list(args),
         check=check,
+        env=env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
+
+
+def package_search_controls() -> list[str]:
+    return [
+        "-DCMAKE_FIND_USE_PACKAGE_REGISTRY=FALSE",
+        "-DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=FALSE",
+        "-DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=TRUE",
+        "-DCMAKE_FIND_PACKAGE_NO_SYSTEM_PACKAGE_REGISTRY=TRUE",
+    ]
 
 
 class TcxComputeBackendCMakeTest(unittest.TestCase):
@@ -37,7 +53,8 @@ class TcxComputeBackendCMakeTest(unittest.TestCase):
                 "-S", str(ANALYTICAL_SOURCE),
                 "-B", str(Path(tmp) / "build"),
                 "-DBUILDTARGET=congestion_aware",
-                "-DASTRA_ENABLE_TCX_COMPUTE_BACKEND=OFF",
+                "-DCMAKE_DISABLE_FIND_PACKAGE_TcxComputeBackend=TRUE",
+                *package_search_controls(),
             )
             self.assertEqual(result.returncode, 0, result.stdout)
             cache = (Path(tmp) / "build" / "CMakeCache.txt").read_text()
@@ -52,6 +69,8 @@ class TcxComputeBackendCMakeTest(unittest.TestCase):
                 "-DBUILDTARGET=congestion_aware",
                 "-DASTRA_ENABLE_TCX_COMPUTE_BACKEND=ON",
                 "-DCMAKE_PREFIX_PATH=" + str(Path(tmp) / "absent"),
+                "-DTcxComputeBackend_DIR=" + str(Path(tmp) / "absent"),
+                *package_search_controls(),
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("TcxComputeBackend", result.stdout)
@@ -78,7 +97,9 @@ class TcxComputeBackendCMakeTest(unittest.TestCase):
                 "-B", str(astra_build),
                 "-DBUILDTARGET=congestion_aware",
                 "-DASTRA_ENABLE_TCX_COMPUTE_BACKEND=ON",
-                "-DCMAKE_PREFIX_PATH=" + str(prefix),
+                "-DTcxComputeBackend_DIR="
+                + str(prefix / "lib" / "cmake" / "TcxComputeBackend"),
+                *package_search_controls(),
             )
             self.assertEqual(result.returncode, 0, result.stdout)
             run(
@@ -87,6 +108,16 @@ class TcxComputeBackendCMakeTest(unittest.TestCase):
                 "-j", "2",
                 check=True,
             )
+            compile_flags = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in astra_build.rglob("flags.make")
+            )
+            self.assertIn("ASTRA_ENABLE_TCX_COMPUTE_BACKEND=1", compile_flags)
+            link_commands = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in astra_build.rglob("link.txt")
+            )
+            self.assertIn("libtcx_fake_compute_backend.a", link_commands)
         self.assertEqual(
             {
                 path: path.read_bytes() if path.exists() else None
@@ -94,6 +125,39 @@ class TcxComputeBackendCMakeTest(unittest.TestCase):
             },
             source_before,
         )
+
+    def test_config_mode_uses_modern_protobuf_generation(self):
+        cmake_text = (ASTRA_ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertNotIn("protobuf_generate_cpp", cmake_text)
+        self.assertIn("protobuf_generate(", cmake_text)
+        with tempfile.TemporaryDirectory(prefix="astra-protobuf-config-") as tmp:
+            root = Path(tmp)
+            config_dir = root / "protobuf-config"
+            config_dir.mkdir()
+            (config_dir / "protobuf-config.cmake").write_text(
+                "find_package(Protobuf MODULE REQUIRED)\n",
+                encoding="utf-8",
+            )
+            astra_build = root / "astra-build"
+            environment = os.environ.copy()
+            environment["PROTOBUF_FROM_SOURCE"] = "True"
+            result = run(
+                "cmake",
+                "-S", str(ANALYTICAL_SOURCE),
+                "-B", str(astra_build),
+                "-DBUILDTARGET=congestion_aware",
+                "-Dprotobuf_DIR=" + str(config_dir),
+                "-DASTRA_ENABLE_TCX_COMPUTE_BACKEND=OFF",
+                env=environment,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout)
+            run(
+                "cmake", "--build", str(astra_build),
+                "--target", "AstraSim",
+                "-j", "2",
+                check=True,
+                env=environment,
+            )
 
 
 if __name__ == "__main__":

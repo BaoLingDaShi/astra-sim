@@ -50,11 +50,6 @@ endif()
 set(CHAKRA_PROTO_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/graph_frontend/chakra/schema/protobuf"
 )
-protobuf_generate_cpp(
-    CHAKRA_PROTO_SRCS
-    CHAKRA_PROTO_HDRS
-    "${CHAKRA_PROTO_DIR}/et_def.proto"
-)
 
 # Files to compile
 file(GLOB srcs
@@ -73,7 +68,14 @@ file(GLOB srcs
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/remote_memory_backend/analytical/*.cc")
 
 # Compile AstraSim Library
-add_library(AstraSim STATIC ${srcs} ${CHAKRA_PROTO_SRCS})
+add_library(AstraSim STATIC ${srcs})
+protobuf_generate(
+    TARGET AstraSim
+    LANGUAGE cpp
+    APPEND_PATH
+    PROTOS "${CHAKRA_PROTO_DIR}/et_def.proto"
+    PROTOC_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}"
+)
 
 option(
     ASTRA_ENABLE_TCX_COMPUTE_BACKEND
