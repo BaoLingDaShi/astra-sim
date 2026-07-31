@@ -47,6 +47,15 @@ else()
     find_package(Protobuf REQUIRED)
 endif()
 
+set(CHAKRA_PROTO_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/extern/graph_frontend/chakra/schema/protobuf"
+)
+protobuf_generate_cpp(
+    CHAKRA_PROTO_SRCS
+    CHAKRA_PROTO_HDRS
+    "${CHAKRA_PROTO_DIR}/et_def.proto"
+)
+
 # Files to compile
 file(GLOB srcs
     "${CMAKE_CURRENT_SOURCE_DIR}/astra-sim/system/*.cc"
@@ -60,12 +69,11 @@ file(GLOB srcs
     "${CMAKE_CURRENT_SOURCE_DIR}/astra-sim/system/scheduling/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/astra-sim/common/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/graph_frontend/chakra/src/third_party/utils/*.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/extern/graph_frontend/chakra/schema/protobuf/*.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/graph_frontend/chakra/src/feeder_v3/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/remote_memory_backend/analytical/*.cc")
 
 # Compile AstraSim Library
-add_library(AstraSim STATIC ${srcs})
+add_library(AstraSim STATIC ${srcs} ${CHAKRA_PROTO_SRCS})
 
 option(
     ASTRA_ENABLE_TCX_COMPUTE_BACKEND
@@ -94,7 +102,7 @@ endif()
 # Include Directories
 target_include_directories(AstraSim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(AstraSim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/graph_frontend/chakra/)
-target_include_directories(AstraSim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/graph_frontend/chakra/schema/protobuf)
+target_include_directories(AstraSim PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(AstraSim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern/graph_frontend/chakra/src/third_party/utils)
 target_include_directories(AstraSim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/extern/helper/)
 target_include_directories(AstraSim PUBLIC ${Protobuf_INCLUDE_DIR})

@@ -9,6 +9,14 @@ from pathlib import Path
 ASTRA_ROOT = Path(__file__).resolve().parents[1]
 ANALYTICAL_SOURCE = ASTRA_ROOT / "build" / "astra_analytical"
 FAKE_SOURCE = ASTRA_ROOT / "tests" / "fake_compute_backend"
+CHAKRA_PROTO_DIR = (
+    ASTRA_ROOT / "extern" / "graph_frontend" / "chakra" / "schema" / "protobuf"
+)
+GENERATED_PROTO = (
+    CHAKRA_PROTO_DIR / "et_def.pb.cc",
+    CHAKRA_PROTO_DIR / "et_def.pb.h",
+    CHAKRA_PROTO_DIR / "et_def_pb2.py",
+)
 
 
 def run(*args: str, check: bool = False) -> subprocess.CompletedProcess[str]:
@@ -49,6 +57,10 @@ class TcxComputeBackendCMakeTest(unittest.TestCase):
             self.assertIn("TcxComputeBackend", result.stdout)
 
     def test_on_accepts_installed_fake_target(self):
+        source_before = {
+            path: path.read_bytes() if path.exists() else None
+            for path in GENERATED_PROTO
+        }
         with tempfile.TemporaryDirectory(prefix="astra-fake-") as tmp:
             root = Path(tmp)
             fake_build = root / "fake-build"
@@ -75,6 +87,13 @@ class TcxComputeBackendCMakeTest(unittest.TestCase):
                 "-j", "2",
                 check=True,
             )
+        self.assertEqual(
+            {
+                path: path.read_bytes() if path.exists() else None
+                for path in GENERATED_PROTO
+            },
+            source_before,
+        )
 
 
 if __name__ == "__main__":
